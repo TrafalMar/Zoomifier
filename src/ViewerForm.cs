@@ -116,7 +116,12 @@ internal sealed class ViewerForm : Form
         _hint = new HintForm(this, _s, () => _isFullscreen);
         _hint.Clicked += () => { _s.HintExpanded ^= true; _s.Save(); UpdateHint(); };
         if (_s.Mode == ZoomMode.Lens) EnterLensMode();
-        if (HasValidRegion()) { UpdateBorder(); _timer.Start(); }
+        if (HasValidRegion())
+        {
+            // Restored area: hand it to the renderer right away (otherwise the window stays blank).
+            _timer.Start();
+            ViewChanged();
+        }
         else BeginSelect();
         UpdateHint();
     }
