@@ -35,7 +35,11 @@ Settings are saved to `%AppData%\Zoomifier\settings.json`.
 
 ## How it works
 
-Each frame (~60 fps) the region is `StretchBlt`-ed straight from the desktop DC into the viewer window
-(GDI+ bilinear when "smooth" is on), and the mouse cursor is drawn on top, scaled. The viewer and
-frame windows use `WDA_EXCLUDEFROMCAPTURE`, so they never appear in their own capture. The process is
-per-monitor-DPI aware, so all coordinates are physical pixels.
+A render thread drives a GPU pipeline paced by the viewer monitor's refresh rate (e.g. 144/240 fps):
+it waits on a flip-model swap chain's frame-latency object (at most one frame queued), grabs the newest
+desktop frame via DXGI Desktop Duplication, scales the region with Direct2D (nearest-neighbour, or
+bilinear when "smooth" is on), draws the cursor and presents. Frame and cursor are presented together,
+so the cursor never flickers. If duplication is unavailable (rotated monitor, secure desktop, …) the
+region is captured with GDI and still scaled on the GPU; if the GPU path fails entirely, the viewer falls
+back to plain GDI `StretchBlt`. The viewer, frame and hint windows use `WDA_EXCLUDEFROMCAPTURE`, so they
+never appear in their own capture. The process is per-monitor-DPI aware, so all coordinates are physical pixels.

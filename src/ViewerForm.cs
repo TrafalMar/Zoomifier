@@ -18,6 +18,8 @@ internal sealed class ViewerForm : Form
     private readonly Font _emptyFont = new("Segoe UI Semibold", 30f, GraphicsUnit.Pixel);
     private RegionBorderForm? _border;
     private HintForm? _hint;
+    private readonly RenderSurface _surface = new() { Dock = DockStyle.Fill, Visible = false };
+    private DxRenderer? _dx;
     private Rectangle _windowedBounds;
     private bool _isFullscreen;
     private bool _selecting;
@@ -49,7 +51,8 @@ internal sealed class ViewerForm : Form
         _tray.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) Activate(); };
         _tray.DoubleClick += (_, _) => BeginSelect();
 
-        _timer.Tick += (_, _) => RenderFrame();
+        _timer.Tick += (_, _) => { if (_dx == null) RenderFrame(); };
+        Controls.Add(_surface);
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
         var screen = PickInitialScreen();
@@ -80,6 +83,8 @@ internal sealed class ViewerForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        _dx = new DxRenderer(_surface.Handle);
+        _dx.Failed += () => BeginInvoke(FallBackToGdi);
         _hint = new HintForm(this, _s, () => _isFullscreen);
         _hint.Clicked += () => { _s.HintExpanded ^= true; _s.Save(); UpdateHint(); };
         if (HasValidRegion()) { UpdateBorder(); _timer.Start(); }
@@ -102,6 +107,8 @@ internal sealed class ViewerForm : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         _timer.Stop();
+        _dx?.Dispose();
+        _dx = null;
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _s.Save();
         _tray.Visible = false;
@@ -123,7 +130,7 @@ internal sealed class ViewerForm : Form
             if (!_s.Region.IsEmpty && !HasValidRegion()) _s.Region = Rectangle.Empty;
             UpdateBorder();
             UpdateHint();
-            Invalidate();
+            ViewChanged();
         });
     }
 
@@ -136,6 +143,7 @@ internal sealed class ViewerForm : Form
         _timer.Stop();
         _border?.Hide();
         UpdateHint();
+        ViewChanged();
         RegionSelector.Begin(result =>
         {
             _selecting = false;
@@ -148,8 +156,30 @@ internal sealed class ViewerForm : Form
             if (HasValidRegion()) _timer.Start();
             UpdateBorder();
             UpdateHint();
-            Invalidate();
+            ViewChanged();
         });
+    }
+
+    /// <summary>Pushes the current view to the GPU renderer (or repaints the GDI fallback / empty state).</summary>
+    private void ViewChanged()
+    {
+        bool live = !_selecting && HasValidRegion();
+        if (_dx != null)
+        {
+            // While selecting, keep the last frame up; the renderer is paused so it won't zoom the selection overlay.
+            if (live) _surface.Visible = true;
+            else if (!_selecting) _surface.Visible = false;
+            _dx.SetView(live ? new ViewState(_s.Region, ClientSize, _s.KeepAspect, _s.Smooth, _s.ShowCursor) : null);
+        }
+        Invalidate();
+    }
+
+    private void FallBackToGdi()
+    {
+        _dx?.Dispose();
+        _dx = null;
+        _surface.Visible = false;
+        Invalidate();
     }
 
     private bool HasValidRegion() =>
@@ -177,7 +207,7 @@ internal sealed class ViewerForm : Form
         if (r == _s.Region) return;
         _s.Region = r;
         UpdateBorder();
-        Invalidate();
+        ViewChanged();
     }
 
     private void Zoom(double factor, Point? anchorClient = null)
@@ -295,14 +325,7 @@ internal sealed class ViewerForm : Form
 
     // ---------- rendering ----------
 
-    private Rectangle Dest(Rectangle src)
-    {
-        var c = ClientRectangle;
-        if (!_s.KeepAspect || src.Width <= 0 || src.Height <= 0) return c;
-        double scale = Math.Min(c.Width / (double)src.Width, c.Height / (double)src.Height);
-        int w = (int)Math.Round(src.Width * scale), h = (int)Math.Round(src.Height * scale);
-        return new Rectangle((c.Width - w) / 2, (c.Height - h) / 2, w, h);
-    }
+    private Rectangle Dest(Rectangle src) => DxRenderer.Dest(ClientRectangle, src, _s.KeepAspect);
 
     private static PointF ToSource(Point p, Rectangle src, Rectangle dst) => new(
         src.X + (p.X - dst.X) * src.Width / (float)dst.Width,
@@ -405,7 +428,7 @@ internal sealed class ViewerForm : Form
     {
         if (!_selecting && HasValidRegion())
         {
-            RenderFrame();
+            if (_dx == null) RenderFrame();
             return;
         }
         e.Graphics.Clear(Color.Black);
@@ -421,7 +444,7 @@ internal sealed class ViewerForm : Form
     {
         base.OnResize(e);
         UpdateHint();
-        Invalidate();
+        ViewChanged();
     }
 
     protected override void OnMove(EventArgs e)
@@ -443,9 +466,9 @@ internal sealed class ViewerForm : Form
             case Keys.Escape: if (_isFullscreen) ToggleFullscreen(); break;
             case Keys.R: BeginSelect(); break;
             case Keys.M: NextMonitor(); break;
-            case Keys.A: _s.KeepAspect ^= true; Invalidate(); break;
-            case Keys.S: _s.Smooth ^= true; Invalidate(); break;
-            case Keys.C: _s.ShowCursor ^= true; Invalidate(); break;
+            case Keys.A: _s.KeepAspect ^= true; ViewChanged(); break;
+            case Keys.S: _s.Smooth ^= true; ViewChanged(); break;
+            case Keys.C: _s.ShowCursor ^= true; ViewChanged(); break;
             case Keys.B: _s.ShowBorder ^= true; UpdateBorder(); break;
             case Keys.H when e.Shift: _s.ShowHint ^= true; break;
             case Keys.H: _s.HintExpanded ^= true; _s.ShowHint = true; break;
@@ -528,9 +551,9 @@ internal sealed class ViewerForm : Form
         _menu.Items.Add(monitors);
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(Toggle("Fullscreen", "F11", _isFullscreen, ToggleFullscreen));
-        _menu.Items.Add(Toggle("Keep aspect ratio", "A", _s.KeepAspect, () => { _s.KeepAspect ^= true; Invalidate(); }));
-        _menu.Items.Add(Toggle("Smooth scaling", "S", _s.Smooth, () => { _s.Smooth ^= true; Invalidate(); }));
-        _menu.Items.Add(Toggle("Show mouse cursor", "C", _s.ShowCursor, () => { _s.ShowCursor ^= true; Invalidate(); }));
+        _menu.Items.Add(Toggle("Keep aspect ratio", "A", _s.KeepAspect, () => { _s.KeepAspect ^= true; ViewChanged(); }));
+        _menu.Items.Add(Toggle("Smooth scaling", "S", _s.Smooth, () => { _s.Smooth ^= true; ViewChanged(); }));
+        _menu.Items.Add(Toggle("Show mouse cursor", "C", _s.ShowCursor, () => { _s.ShowCursor ^= true; ViewChanged(); }));
         _menu.Items.Add(Toggle("Show region border", "B", _s.ShowBorder, () => { _s.ShowBorder ^= true; UpdateBorder(); }));
         _menu.Items.Add(Toggle("Show shortcut hints", "Shift+H", _s.ShowHint, () => _s.ShowHint ^= true));
         _menu.Items.Add(new ToolStripSeparator());

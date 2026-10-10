@@ -21,6 +21,14 @@ internal static class Native
     public struct POINT { public int X, Y; }
 
     [StructLayout(LayoutKind.Sequential)]
+    public struct BITMAPINFOHEADER
+    {
+        public int biSize, biWidth, biHeight;
+        public ushort biPlanes, biBitCount;
+        public int biCompression, biSizeImage, biXPelsPerMeter, biYPelsPerMeter, biClrUsed, biClrImportant;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     public struct SIZE { public int cx, cy; }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -68,5 +76,10 @@ internal static class Native
     [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
     [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
     [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
+    [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFOHEADER pbmi, uint usage, out IntPtr bits, IntPtr hSection, uint offset);
+    [DllImport("gdi32.dll")] public static extern bool GdiFlush();
+
+    [DllImport("kernel32.dll")] public static extern uint WaitForSingleObjectEx(IntPtr hHandle, uint dwMilliseconds, bool bAlertable);
+    [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr hObject);
     [DllImport("gdi32.dll")] public static extern int GetObject(IntPtr h, int c, out BITMAP pv);
 }
