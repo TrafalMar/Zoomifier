@@ -9,20 +9,15 @@ namespace Zoomifier;
 internal sealed class ViewerForm : Form
 {
     private const int HotkeyId = 1;
-    private const string HelpText =
-        "Ctrl+Alt+Z / R  select region\n" +
-        "Mouse wheel, + / -  zoom in / out\n" +
-        "Drag, arrow keys  pan (Shift = 1 px)\n" +
-        "F11 / double-click  fullscreen   Esc  leave fullscreen\n" +
-        "M  next monitor   A  keep aspect   S  smooth   C  cursor   B  border\n" +
-        "Right-click  menu";
 
     private readonly Settings _s;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 15 };
     private readonly NotifyIcon _tray;
     private readonly ContextMenuStrip _menu = new();
-    private readonly Font _helpFont = new("Segoe UI", 16f, GraphicsUnit.Pixel);
+    private readonly Font _helpFont = new("Segoe UI", 18f, GraphicsUnit.Pixel);
+    private readonly Font _emptyFont = new("Segoe UI Semibold", 30f, GraphicsUnit.Pixel);
     private RegionBorderForm? _border;
+    private HintForm? _hint;
     private Rectangle _windowedBounds;
     private bool _isFullscreen;
     private bool _selecting;
@@ -58,6 +53,8 @@ internal sealed class ViewerForm : Form
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
         var screen = PickInitialScreen();
+        // Every launch starts with a fresh selection rather than the region from last time.
+        _s.Region = Rectangle.Empty;
         _windowedBounds = CenteredOn(screen);
         Bounds = _windowedBounds;
         if (_s.Fullscreen) EnterFullscreen(screen);
@@ -83,8 +80,11 @@ internal sealed class ViewerForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        _hint = new HintForm(this, _s, () => _isFullscreen);
+        _hint.Clicked += () => { _s.HintExpanded ^= true; _s.Save(); UpdateHint(); };
         if (HasValidRegion()) { UpdateBorder(); _timer.Start(); }
         else BeginSelect();
+        UpdateHint();
     }
 
     protected override void WndProc(ref Message m)
@@ -107,8 +107,10 @@ internal sealed class ViewerForm : Form
         _tray.Visible = false;
         _tray.Dispose();
         _border?.Close();
+        _hint?.Close();
         _frame?.Dispose();
         _helpFont.Dispose();
+        _emptyFont.Dispose();
         base.OnFormClosing(e);
     }
 
@@ -120,6 +122,7 @@ internal sealed class ViewerForm : Form
             if (_isFullscreen) Bounds = CurrentScreen().Bounds;
             if (!_s.Region.IsEmpty && !HasValidRegion()) _s.Region = Rectangle.Empty;
             UpdateBorder();
+            UpdateHint();
             Invalidate();
         });
     }
@@ -132,6 +135,7 @@ internal sealed class ViewerForm : Form
         _selecting = true;
         _timer.Stop();
         _border?.Hide();
+        UpdateHint();
         RegionSelector.Begin(result =>
         {
             _selecting = false;
@@ -143,6 +147,7 @@ internal sealed class ViewerForm : Form
             }
             if (HasValidRegion()) _timer.Start();
             UpdateBorder();
+            UpdateHint();
             Invalidate();
         });
     }
@@ -211,6 +216,17 @@ internal sealed class ViewerForm : Form
         _border ??= new RegionBorderForm();
         _border.SetRegion(_s.Region);
         if (!_border.Visible) _border.Show();
+    }
+
+    private void UpdateHint()
+    {
+        if (_hint == null) return;
+        if (!_s.ShowHint || _selecting || !Visible || WindowState == FormWindowState.Minimized)
+        {
+            _hint.Hide();
+            return;
+        }
+        _hint.Present(RectangleToScreen(ClientRectangle), Native.GetDpiForWindow(Handle) / 96f, _s.HintExpanded);
     }
 
     // ---------- window placement ----------
@@ -393,14 +409,25 @@ internal sealed class ViewerForm : Form
             return;
         }
         e.Graphics.Clear(Color.Black);
-        TextRenderer.DrawText(e.Graphics, "No region selected\n\n" + HelpText, _helpFont, ClientRectangle,
-            Color.Gainsboro, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+        var c = ClientRectangle;
+        int mid = c.Height / 2;
+        TextRenderer.DrawText(e.Graphics, "No region selected", _emptyFont, new Rectangle(0, 0, c.Width, mid - 6),
+            Color.Gainsboro, TextFormatFlags.HorizontalCenter | TextFormatFlags.Bottom);
+        TextRenderer.DrawText(e.Graphics, "Press R or Ctrl+Alt+Z to pick an area to zoom", _helpFont,
+            new Rectangle(0, mid + 6, c.Width, c.Height - mid - 6), Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.Top);
     }
 
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+        UpdateHint();
         Invalidate();
+    }
+
+    protected override void OnMove(EventArgs e)
+    {
+        base.OnMove(e);
+        UpdateHint();
     }
 
     // ---------- input ----------
@@ -420,6 +447,8 @@ internal sealed class ViewerForm : Form
             case Keys.S: _s.Smooth ^= true; Invalidate(); break;
             case Keys.C: _s.ShowCursor ^= true; Invalidate(); break;
             case Keys.B: _s.ShowBorder ^= true; UpdateBorder(); break;
+            case Keys.H when e.Shift: _s.ShowHint ^= true; break;
+            case Keys.H: _s.HintExpanded ^= true; _s.ShowHint = true; break;
             case Keys.Oemplus or Keys.Add: Zoom(0.8); break;
             case Keys.OemMinus or Keys.Subtract: Zoom(1.25); break;
             case Keys.Left: Pan(-stepX, 0); break;
@@ -430,6 +459,7 @@ internal sealed class ViewerForm : Form
         }
         e.Handled = true;
         _s.Save();
+        UpdateHint();
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -502,10 +532,11 @@ internal sealed class ViewerForm : Form
         _menu.Items.Add(Toggle("Smooth scaling", "S", _s.Smooth, () => { _s.Smooth ^= true; Invalidate(); }));
         _menu.Items.Add(Toggle("Show mouse cursor", "C", _s.ShowCursor, () => { _s.ShowCursor ^= true; Invalidate(); }));
         _menu.Items.Add(Toggle("Show region border", "B", _s.ShowBorder, () => { _s.ShowBorder ^= true; UpdateBorder(); }));
+        _menu.Items.Add(Toggle("Show shortcut hints", "Shift+H", _s.ShowHint, () => _s.ShowHint ^= true));
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add("Exit", null, (_, _) => Close());
     }
 
     private ToolStripMenuItem Toggle(string text, string key, bool on, Action action) =>
-        new(text, null, (_, _) => { action(); _s.Save(); }) { Checked = on, ShortcutKeyDisplayString = key };
+        new(text, null, (_, _) => { action(); _s.Save(); UpdateHint(); }) { Checked = on, ShortcutKeyDisplayString = key };
 }

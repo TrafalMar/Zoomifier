@@ -17,6 +17,8 @@ internal sealed class Settings
     public bool Smooth { get; set; }
     public bool ShowCursor { get; set; } = true;
     public bool ShowBorder { get; set; } = true;
+    public bool ShowHint { get; set; } = true;
+    public bool HintExpanded { get; set; } = true;
 
     [JsonIgnore]
     public Rectangle Region

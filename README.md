@@ -13,7 +13,7 @@ Single-file exe: `dotnet publish src -c Release -r win-x64 --self-contained fals
 
 ## Usage
 
-On first launch you are asked to drag a rectangle (on any monitor). The viewer then opens fullscreen
+Every launch starts by asking you to drag a rectangle (on any monitor). The viewer then opens fullscreen
 on a *different* monitor. A red frame marks the source region (it is not captured).
 
 | Input | Action |
@@ -25,6 +25,11 @@ on a *different* monitor. A red frame marks the source region (it is not capture
 | M | Move viewer to next monitor |
 | A / S / C / B | Keep aspect · smooth (bilinear) scaling · show cursor · show region frame |
 | Right-click / tray icon | Menu (monitor picker, toggles, exit) |
+| H / click the hint | Switch the shortcut hint between the compact badge and the full panel |
+| Shift+H | Hide / show the shortcut hint |
+
+A shortcut cheat-sheet sits in the viewer's bottom-right corner (excluded from capture, never takes focus);
+it lists every key and shows which toggles are on.
 
 Settings are saved to `%AppData%\Zoomifier\settings.json`.
 
