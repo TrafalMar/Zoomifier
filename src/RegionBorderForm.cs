@@ -11,7 +11,6 @@ internal sealed class RegionBorderForm : Form
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
         ShowInTaskbar = false;
-        TopMost = true;
         BackColor = Color.Magenta;
         TransparencyKey = Color.Magenta;
     }
@@ -23,7 +22,7 @@ internal sealed class RegionBorderForm : Form
         get
         {
             var cp = base.CreateParams;
-            cp.ExStyle |= Native.WS_EX_TRANSPARENT | Native.WS_EX_LAYERED | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE;
+            cp.ExStyle |= Native.WS_EX_TRANSPARENT | Native.WS_EX_LAYERED | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE | Native.WS_EX_TOPMOST;
             return cp;
         }
     }

@@ -13,7 +13,8 @@ Single-file exe: `dotnet publish src -c Release -r win-x64 --self-contained fals
 
 ## Usage
 
-Every launch starts by asking you to drag a rectangle (on any monitor). The viewer then opens fullscreen
+The last selected area is restored on launch; on first launch (or if that area is no longer on screen) you
+are asked to drag a rectangle (on any monitor). The viewer then opens fullscreen
 on a *different* monitor. A red frame marks the source region (it is not captured).
 
 | Input | Action |
@@ -32,6 +33,34 @@ A shortcut cheat-sheet sits in the viewer's bottom-right corner (excluded from c
 it lists every key and shows which toggles are on.
 
 Settings are saved to `%AppData%\Zoomifier\settings.json`.
+
+## Changing shortcuts
+
+Right-click the viewer or tray icon → **Keyboard shortcuts…**. Click a shortcut, press the new keys, Save.
+Global shortcuts (work in any app) need Ctrl or Alt (or an F-key); a key already used by another action is
+moved, and global ones taken by another app are flagged. The lens hold key is picked there too.
+
+Only changed shortcuts are saved (in `%AppData%\Zoomifier\settings.json`), so they survive updates, and
+new shortcuts or defaults in later versions still apply. If the file can't be read it is kept as
+`settings.json.bak` instead of being overwritten.
+
+## Lens mode
+
+Switch either way with **Ctrl+Alt+L** (works in any app), **L** in the viewer, or one click on
+*Viewer on another monitor* / *Lens over the area* in the menu (each launch starts in the other-monitor
+mode). The viewer hides and the zoom
+appears in place: a click-through window lies exactly over the selected area and shows its centre magnified
+(never takes focus, excluded from capture, so games and apps keep working underneath).
+
+| Input (global, works in any app) | Action |
+|---|---|
+| Ctrl+Alt+L | Switch between viewer and lens mode |
+| Ctrl+Alt+X | Lens on / off |
+| Hold key (default: mouse back button) | Show the lens while held; pick the key under *Hold to show* in the tray menu |
+| Ctrl+Alt+Plus / Minus | Lens zoom in / out (presets in the tray menu) |
+| Ctrl+Alt+Z | Select a new area |
+
+Switch back with Ctrl+Alt+L or *Viewer on another monitor* in the tray menu.
 
 ## How it works
 

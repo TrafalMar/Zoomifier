@@ -10,11 +10,11 @@ internal static class Native
     public const int CURSOR_SHOWING = 0x1;
     public const int DI_NORMAL = 0x3;
     public const int WM_HOTKEY = 0x0312;
-    public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_NOREPEAT = 0x4000;
+    public const uint MOD_ALT = 0x1, MOD_CONTROL = 0x2, MOD_SHIFT = 0x4, MOD_NOREPEAT = 0x4000;
     public const uint WDA_EXCLUDEFROMCAPTURE = 0x11;
-    public const int WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_LAYERED = 0x80000, WS_EX_NOACTIVATE = 0x08000000;
+    public const int WS_EX_TOPMOST = 0x8, WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_LAYERED = 0x80000, WS_EX_NOACTIVATE = 0x08000000;
     public const int WM_MOUSEACTIVATE = 0x21, MA_NOACTIVATE = 3;
-    public const int ULW_ALPHA = 2;
+    public const int ULW_ALPHA = 2, LWA_ALPHA = 2;
     public const byte AC_SRC_ALPHA = 1;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -63,6 +63,13 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll")] public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, int crKey, byte bAlpha, int dwFlags);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hwnd, string? appName, string? idList);
+    [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+    [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint uPeriod);
+    [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint uPeriod);
     [DllImport("user32.dll")]
     public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize,
         IntPtr hdcSrc, ref POINT pptSrc, int crKey, ref BLENDFUNCTION pblend, int dwFlags);

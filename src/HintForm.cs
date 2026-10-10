@@ -11,10 +11,10 @@ namespace Zoomifier;
 internal sealed class HintForm : Form
 {
     // Key tokens: "&" draws a "+" joiner, "|" draws a "/" between alternatives; mouse actions get an outlined cap.
-    private sealed record Row(string[] Keys, string Text, Func<bool>? State = null);
+    private sealed record Row(Func<string[]> Keys, string Text, Func<bool>? State = null);
     private sealed record Section(string Title, Row[] Rows);
 
-    private static readonly HashSet<string> MouseActions = ["Wheel", "Drag", "Double-click", "Right-click"];
+    private static readonly HashSet<string> MouseActions = ["Wheel", "Drag", "Double-click", "Right-click", "Hold"];
     private static readonly Color Accent = Color.FromArgb(255, 112, 67);
     private static readonly Color CardFill = Color.FromArgb(238, 22, 24, 30);
     private static readonly Color CardEdge = Color.FromArgb(40, 255, 255, 255);
@@ -30,6 +30,9 @@ internal sealed class HintForm : Form
 
     public HintForm(Form owner, Settings s, Func<bool> isFullscreen)
     {
+        string[] K(string id) => Shortcuts.Tokens(Shortcuts.Get(s, id));
+        static string[] Cat(params string[][] parts) => parts.SelectMany(p => p).ToArray();
+
         Owner = owner;
         Text = "Zoomifier shortcuts";
         AutoScaleMode = AutoScaleMode.None;
@@ -43,36 +46,44 @@ internal sealed class HintForm : Form
         [
             new("Region",
             [
-                new(["Ctrl", "&", "Alt", "&", "Z"], "Select a new region (works from any app)"),
-                new(["R"], "Select a new region"),
-                new(["Esc", "|", "Right-click"], "Cancel while selecting"),
+                new(() => K(Shortcuts.Select), "Select a new region (works from any app)"),
+                new(() => K(Shortcuts.SelectLocal), "Select a new region"),
+                new(() => ["Esc", "|", "Right-click"], "Cancel while selecting"),
             ]),
             new("Zoom & pan",
             [
-                new(["Wheel"], "Zoom in / out around the pointer"),
-                new(["+", "|", "−"], "Zoom in / out around the centre"),
-                new(["Drag"], "Move the zoomed area"),
-                new(["←↑→↓"], "Move by 5% of the area"),
-                new(["Shift", "&", "←↑→↓"], "Move by a single pixel"),
+                new(() => ["Wheel"], "Zoom in / out around the pointer"),
+                new(() => Cat(K(Shortcuts.ZoomIn), ["|"], K(Shortcuts.ZoomOut)), "Zoom in / out around the centre"),
+                new(() => ["Drag"], "Move the zoomed area"),
+                new(() => Cat(K(Shortcuts.PanLeft), K(Shortcuts.PanUp), K(Shortcuts.PanRight), K(Shortcuts.PanDown)), "Move by 5% of the area"),
+                new(() => ["Shift", "&", "Move keys"], "Move by a single pixel"),
             ]),
             new("View",
             [
-                new(["A"], "Keep aspect ratio", () => s.KeepAspect),
-                new(["S"], "Smooth (bilinear) scaling", () => s.Smooth),
-                new(["C"], "Show the mouse cursor", () => s.ShowCursor),
-                new(["B"], "Red frame around the source", () => s.ShowBorder),
+                new(() => K(Shortcuts.Aspect), "Keep aspect ratio", () => s.KeepAspect),
+                new(() => K(Shortcuts.Smooth), "Smooth (bilinear) scaling", () => s.Smooth),
+                new(() => K(Shortcuts.Cursor), "Show the mouse cursor", () => s.ShowCursor),
+                new(() => K(Shortcuts.Border), "Red frame around the source", () => s.ShowBorder),
             ]),
             new("Window",
             [
-                new(["F11", "|", "Double-click"], "Fullscreen", isFullscreen),
-                new(["Esc"], "Leave fullscreen"),
-                new(["M"], "Move viewer to the next monitor"),
-                new(["Right-click"], "Menu: monitors, toggles, exit"),
+                new(() => Cat(K(Shortcuts.Fullscreen), ["|", "Double-click"]), "Fullscreen", isFullscreen),
+                new(() => K(Shortcuts.LeaveFullscreen), "Leave fullscreen"),
+                new(() => K(Shortcuts.NextMonitor), "Move viewer to the next monitor"),
+                new(() => ["Right-click"], "Menu: monitors, toggles, shortcuts, exit"),
+            ]),
+            new("Lens mode",
+            [
+                new(() => Cat(K(Shortcuts.SwitchMode), ["|"], K(Shortcuts.LensMode)), "Switch to lens: zoom in place over the area"),
+                new(() => K(Shortcuts.LensToggle), "Lens on / off (works in any app)"),
+                new(() => ["Hold"], "Show lens while held (pick the key in shortcuts)"),
+                new(() => Cat(K(Shortcuts.LensZoomIn), ["|"], K(Shortcuts.LensZoomOut)), "Lens zoom in / out"),
             ]),
             new("This panel",
             [
-                new(["H"], "Collapse / expand (or click it)"),
-                new(["Shift", "&", "H"], "Hide / show hints completely"),
+                new(() => K(Shortcuts.HintToggle), "Collapse / expand (or click it)"),
+                new(() => K(Shortcuts.HintHide), "Hide / show hints completely"),
+                new(() => ["Right-click"], "Keyboard shortcuts… to change any key"),
             ]),
         ];
     }
@@ -123,7 +134,8 @@ internal sealed class HintForm : Form
     public void Present(Rectangle anchor, float scale, bool expanded)
     {
         var states = _sections.SelectMany(s => s.Rows).Select(r => r.State?.Invoke() switch { true => '1', false => '0', null => '-' });
-        string state = $"{expanded}|{scale}|{anchor.Size}|{string.Concat(states)}";
+        var keys = _sections.SelectMany(s => s.Rows).Select(r => string.Join(" ", r.Keys()));
+        string state = $"{expanded}|{scale}|{anchor.Size}|{string.Concat(states)}|{string.Join(",", keys)}";
         if (_bitmap == null || state != _renderedState)
         {
             _bitmap?.Dispose();
@@ -205,7 +217,7 @@ internal sealed class HintForm : Form
         float pad = st.S(18), titleH = st.S(40), headerH = st.S(26), rowH = st.S(30), sectionGap = st.S(8);
         float colGap = st.S(20), badgeGap = st.S(14);
         var rows = _sections.SelectMany(s => s.Rows).ToArray();
-        float keyCol = rows.Max(r => KeysWidth(mg, st, r.Keys));
+        float keyCol = rows.Max(r => KeysWidth(mg, st, r.Keys()));
         float badgeW = Measure(mg, "OFF", st.Badge) + st.S(16);
         float textCol = rows.Max(r => Measure(mg, r.Text, st.Body) + (r.State != null ? badgeGap + badgeW : 0));
         textCol = Math.Max(textCol, Measure(mg, "Keyboard shortcuts", st.Title) + st.S(120) - keyCol);
@@ -234,7 +246,7 @@ internal sealed class HintForm : Form
                 foreach (var row in section.Rows)
                 {
                     float cy = y + rowH / 2;
-                    DrawKeys(g, st, row.Keys, pad, cy);
+                    DrawKeys(g, st, row.Keys(), pad, cy);
                     DrawText(g, row.Text, st.Body, TextColor, pad + keyCol + colGap, cy);
                     if (row.State is { } state)
                         DrawBadge(g, st, state(), cardW - pad - badgeW, cy, badgeW);
