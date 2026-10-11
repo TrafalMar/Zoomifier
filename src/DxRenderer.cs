@@ -71,7 +71,7 @@ internal sealed class DxRenderer : IDisposable
     public DxRenderer(IntPtr hwnd)
     {
         _hwnd = hwnd;
-        _thread = new Thread(Run) { IsBackground = true, Name = "Zoomifier render", Priority = ThreadPriority.AboveNormal };
+        _thread = new Thread(Run) { IsBackground = true, Name = "Zoomifier render", Priority = ThreadPriority.Highest };
         _thread.Start();
     }
 
@@ -101,6 +101,15 @@ internal sealed class DxRenderer : IDisposable
     // ---------- loop ----------
 
     private void Run()
+    {
+        // MMCSS "Games": the scheduler wakes this frame-paced thread on time even when a game loads the CPU.
+        uint taskIndex = 0;
+        IntPtr mmcss = Native.AvSetMmThreadCharacteristics("Games", ref taskIndex);
+        try { Loop(); }
+        finally { if (mmcss != IntPtr.Zero) Native.AvRevertMmThreadCharacteristics(mmcss); }
+    }
+
+    private void Loop()
     {
         int failures = 0;
         while (!_stop)
@@ -206,6 +215,9 @@ internal sealed class DxRenderer : IDisposable
         _nextDupAttempt = 0;
 
         using var dxgiDevice = _device!.QueryInterface<IDXGIDevice>();
+        // Jump ahead of a game's GPU work so lens/viewer frames don't queue behind it. Raising above normal
+        // needs admin rights; without them the call fails and the default priority stays.
+        dxgiDevice.SetGPUThreadPriority(7);
         _d2dFactory = D2D1.D2D1CreateFactory<ID2D1Factory1>();
         _d2dDevice = _d2dFactory.CreateDevice(dxgiDevice);
         _ctx = _d2dDevice.CreateDeviceContext(DeviceContextOptions.None);

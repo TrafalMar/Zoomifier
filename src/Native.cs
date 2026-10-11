@@ -86,6 +86,8 @@ internal static class Native
     [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFOHEADER pbmi, uint usage, out IntPtr bits, IntPtr hSection, uint offset);
     [DllImport("gdi32.dll")] public static extern bool GdiFlush();
 
+    [DllImport("avrt.dll", CharSet = CharSet.Unicode)] public static extern IntPtr AvSetMmThreadCharacteristics(string taskName, ref uint taskIndex);
+    [DllImport("avrt.dll")] public static extern bool AvRevertMmThreadCharacteristics(IntPtr avrtHandle);
     [DllImport("kernel32.dll")] public static extern uint WaitForSingleObjectEx(IntPtr hHandle, uint dwMilliseconds, bool bAlertable);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr hObject);
     [DllImport("gdi32.dll")] public static extern int GetObject(IntPtr h, int c, out BITMAP pv);
