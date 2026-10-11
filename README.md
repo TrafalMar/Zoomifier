@@ -1,74 +1,111 @@
 # Zoomifier
 
-Select a portion of the screen on one monitor and show it, magnified and live, on another monitor.
+Zoom into any part of your screen, live and smooth. Show the magnified area on another monitor,
+or right on top of the area itself like a scope.
 
-## Build & run
+## Download
+
+Get the latest version from [Releases](https://github.com/TrafalMar/Zoomifier/releases):
+
+| File | When to use it |
+|---|---|
+| `Zoomifier-vX.Y.Z-win-x64.exe` | Small download; needs the [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) |
+| `Zoomifier-vX.Y.Z-win-x64-selfcontained.exe` | Larger, but runs without installing anything |
+
+Requires Windows 10 (version 2004 or newer) or Windows 11, 64-bit. No installation needed: just run the exe.
+
+## Getting started
+
+1. Start Zoomifier. On the first launch, drag a rectangle around the area you want to zoom (on any monitor).
+2. The magnified view opens fullscreen on a *different* monitor and updates live at your monitor's refresh rate.
+3. A red frame marks the area being zoomed.
+
+Next time, Zoomifier reopens the area you used last. Press **Ctrl+Alt+Z** at any time to pick a new one.
+While selecting, **Esc** or right-click cancels.
+
+Zoomifier runs from the tray icon. Right-click the viewer or the tray icon for the menu; **Exit** is there too.
+
+## Two modes
+
+| Mode | What it does |
+|---|---|
+| **Viewer on another monitor** | The zoomed area is shown in its own window, fullscreen or windowed, on the monitor of your choice. |
+| **Lens over the area** | The zoom appears right over the selected area, like a magnifying glass. Clicks go through it, so games and apps keep working underneath. |
+
+Switch between them with **Ctrl+Alt+L** (works in any app), **L** in the viewer, or one click in the menu.
+Zoomifier always starts in viewer mode.
+
+## Viewer mode
+
+| Shortcut | Action |
+|---|---|
+| Mouse wheel | Zoom in / out around the pointer |
+| `+` / `−` | Zoom in / out around the centre |
+| Left-drag | Move the zoomed area |
+| Arrow keys | Move the zoomed area by 5% (hold **Shift** to move by 1 pixel) |
+| F11 or double-click | Toggle fullscreen |
+| Esc | Leave fullscreen |
+| M | Move the viewer to the next monitor |
+| A | Keep aspect ratio on / off |
+| S | Smooth scaling on / off (off = sharp pixels) |
+| C | Show the mouse cursor in the zoom on / off |
+| B | Show the red frame on / off |
+| R | Select a new area |
+| L | Switch to lens mode |
+
+The menu also has a monitor picker, so you can send the viewer to a specific screen.
+
+### Shortcut panel
+
+A cheat-sheet in the viewer's corner lists every shortcut and shows which options are on or off.
+
+- **H**, or a click on the panel, switches between a small badge and the full list.
+- **Shift+H** hides or shows it completely (also in the menu).
+
+## Lens mode
+
+| Shortcut (works in any app) | Action |
+|---|---|
+| Ctrl+Alt+X | Lens on / off |
+| Hold the mouse back button | Show the lens only while held |
+| Ctrl+Alt+Plus / Ctrl+Alt+Minus | Zoom the lens in / out |
+| Ctrl+Alt+Z | Select a new area |
+| Ctrl+Alt+L | Switch back to viewer mode |
+
+In the menu you can also:
+- pick a lens zoom from 1.5× to 8×;
+- turn the lens on or off;
+- choose a different hold key.
+
+The red frame appears around the lens only while the lens is visible.
+
+## Changing shortcuts
+
+Right-click the viewer or the tray icon → **Keyboard shortcuts…**
+
+- Click a shortcut and press the new key combination, then **Save**.
+- **✕** removes a shortcut. **Reset to defaults** restores them all.
+- For the lens hold key, click its box and press any key or mouse button, including mouse side buttons.
+- Global shortcuts (the ones that work in any app) need **Ctrl** or **Alt**, or an F-key.
+- If a combination is already used by another action, it moves to the new one and you're told which action lost it.
+- If another app already uses a global shortcut, it's marked in red so you can pick a different one.
+
+The menus and the shortcut panel always show your current keys.
+
+## Settings
+
+All settings are saved automatically: the selected area, options, lens zoom and shortcuts.
+They are kept when you update to a newer version.
+
+## Good to know
+
+- Zoomifier's windows don't appear in screen sharing, recordings or screenshots (Discord, OBS, Teams, etc.).
+  This is what lets the zoom show what's underneath instead of zooming itself.
+- Only one copy of Zoomifier runs at a time.
+
+## Build from source
 
 ```
 dotnet build src -c Release
 src\bin\Release\net8.0-windows\Zoomifier.exe
 ```
-
-Single-file exe: `dotnet publish src -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true`
-
-## Usage
-
-The last selected area is restored on launch; on first launch (or if that area is no longer on screen) you
-are asked to drag a rectangle (on any monitor). The viewer then opens fullscreen
-on a *different* monitor. A red frame marks the source region (it is not captured).
-
-| Input | Action |
-|---|---|
-| Ctrl+Alt+Z (global) / R | Select a new region |
-| Mouse wheel, `+` / `-` | Zoom in / out (wheel zooms around the pointer) |
-| Left-drag, arrow keys | Pan the source region (Shift+arrow = 1 px) |
-| F11 / double-click, Esc | Toggle / leave fullscreen |
-| M | Move viewer to next monitor |
-| A / S / C / B | Keep aspect · smooth (bilinear) scaling · show cursor · show region frame |
-| Right-click / tray icon | Menu (monitor picker, toggles, exit) |
-| H / click the hint | Switch the shortcut hint between the compact badge and the full panel |
-| Shift+H | Hide / show the shortcut hint |
-
-A shortcut cheat-sheet sits in the viewer's bottom-right corner (excluded from capture, never takes focus);
-it lists every key and shows which toggles are on.
-
-Settings are saved to `%AppData%\Zoomifier\settings.json`.
-
-## Changing shortcuts
-
-Right-click the viewer or tray icon → **Keyboard shortcuts…**. Click a shortcut, press the new keys, Save.
-Global shortcuts (work in any app) need Ctrl or Alt (or an F-key); a key already used by another action is
-moved, and global ones taken by another app are flagged. The lens hold key is picked there too.
-
-Only changed shortcuts are saved (in `%AppData%\Zoomifier\settings.json`), so they survive updates, and
-new shortcuts or defaults in later versions still apply. If the file can't be read it is kept as
-`settings.json.bak` instead of being overwritten.
-
-## Lens mode
-
-Switch either way with **Ctrl+Alt+L** (works in any app), **L** in the viewer, or one click on
-*Viewer on another monitor* / *Lens over the area* in the menu (each launch starts in the other-monitor
-mode). The viewer hides and the zoom
-appears in place: a click-through window lies exactly over the selected area and shows its centre magnified
-(never takes focus, excluded from capture, so games and apps keep working underneath).
-
-| Input (global, works in any app) | Action |
-|---|---|
-| Ctrl+Alt+L | Switch between viewer and lens mode |
-| Ctrl+Alt+X | Lens on / off |
-| Hold key (default: mouse back button) | Show the lens while held; pick the key under *Hold to show* in the tray menu |
-| Ctrl+Alt+Plus / Minus | Lens zoom in / out (presets in the tray menu) |
-| Ctrl+Alt+Z | Select a new area |
-
-Switch back with Ctrl+Alt+L or *Viewer on another monitor* in the tray menu.
-
-## How it works
-
-A render thread drives a GPU pipeline paced by the viewer monitor's refresh rate (e.g. 144/240 fps):
-it waits on a flip-model swap chain's frame-latency object (at most one frame queued), grabs the newest
-desktop frame via DXGI Desktop Duplication, scales the region with Direct2D (nearest-neighbour, or
-bilinear when "smooth" is on), draws the cursor and presents. Frame and cursor are presented together,
-so the cursor never flickers. If duplication is unavailable (rotated monitor, secure desktop, …) the
-region is captured with GDI and still scaled on the GPU; if the GPU path fails entirely, the viewer falls
-back to plain GDI `StretchBlt`. The viewer, frame and hint windows use `WDA_EXCLUDEFROMCAPTURE`, so they
-never appear in their own capture. The process is per-monitor-DPI aware, so all coordinates are physical pixels.
