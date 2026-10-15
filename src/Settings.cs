@@ -28,6 +28,10 @@ internal sealed class Settings
     public double LensZoom { get; set; } = 2.0;
     /// <summary>Virtual-key code that shows the lens while held; 0 = none. Default: mouse back button.</summary>
     public int HoldKey { get; set; } = 0x05;
+    /// <summary>Virtual-key code that turns the lens on / off with each press; 0 = none. Default: mouse forward button.</summary>
+    public int ToggleKey { get; set; } = 0x06;
+    /// <summary>Draws a frames-per-second counter in the lens corner.</summary>
+    public bool LensShowFps { get; set; }
 
     /// <summary>Shortcut overrides by action id (see <see cref="Zoomifier.Shortcuts"/>); defaults are not stored.</summary>
     public Dictionary<string, string> Shortcuts { get; set; } = new();

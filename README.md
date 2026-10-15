@@ -68,6 +68,7 @@ A cheat-sheet in the viewer's corner lists every shortcut and shows which option
 |---|---|
 | Ctrl+Alt+X | Lens on / off |
 | Hold the mouse back button | Show the lens only while held |
+| Press the mouse forward button | Lens on / off |
 | Ctrl+Alt+Plus / Ctrl+Alt+Minus | Zoom the lens in / out |
 | Ctrl+Alt+Z | Select a new area |
 | Ctrl+Alt+L | Switch back to viewer mode |
@@ -75,7 +76,8 @@ A cheat-sheet in the viewer's corner lists every shortcut and shows which option
 In the menu you can also:
 - pick a lens zoom from 1.5× to 8×;
 - turn the lens on or off;
-- choose a different hold key.
+- choose a different hold key or toggle key (any key or mouse button);
+- show an FPS counter in the lens corner.
 
 The red frame appears around the lens only while the lens is visible.
 
@@ -85,7 +87,7 @@ Right-click the viewer or the tray icon → **Keyboard shortcuts…**
 
 - Click a shortcut and press the new key combination, then **Save**.
 - **✕** removes a shortcut. **Reset to defaults** restores them all.
-- For the lens hold key, click its box and press any key or mouse button, including mouse side buttons.
+- For the lens hold and toggle keys, click the box and press any key or mouse button, including mouse side buttons.
 - Global shortcuts (the ones that work in any app) need **Ctrl** or **Alt**, or an F-key.
 - If a combination is already used by another action, it moves to the new one and you're told which action lost it.
 - If another app already uses a global shortcut, it's marked in red so you can pick a different one.

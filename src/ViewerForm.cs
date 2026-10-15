@@ -25,6 +25,7 @@ internal sealed class ViewerForm : Form
     private DxRenderer? _dx;
     private LensForm? _lens;
     private HoldWatcher? _hold;
+    private HoldWatcher? _toggle;
     private bool _lensOn;
     private bool _started;
     private readonly Dictionary<int, string> _hotkeys = new(); // RegisterHotKey id -> shortcut id
@@ -145,6 +146,8 @@ internal sealed class ViewerForm : Form
         _dx = null;
         _hold?.Dispose();
         _hold = null;
+        _toggle?.Dispose();
+        _toggle = null;
         _lens?.Close();
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         _s.Save();
@@ -246,6 +249,16 @@ internal sealed class ViewerForm : Form
                 catch (InvalidOperationException) { /* closing */ }
             };
         }
+        if (_toggle == null)
+        {
+            _toggle = new HoldWatcher(_s.ToggleKey);
+            _toggle.Changed += down =>
+            {
+                if (!down) return;
+                try { if (IsHandleCreated && !IsDisposed) BeginInvoke(ToggleLens); }
+                catch (InvalidOperationException) { /* closing */ }
+            };
+        }
         UpdateTrayText();
     }
 
@@ -254,6 +267,8 @@ internal sealed class ViewerForm : Form
         RegisterGlobalHotkeys();
         _hold?.Dispose();
         _hold = null;
+        _toggle?.Dispose();
+        _toggle = null;
         _lensOn = false;
         _lens?.Conceal();
         UpdateTrayText();
@@ -322,11 +337,10 @@ internal sealed class ViewerForm : Form
         }
     }
 
-    private IReadOnlyCollection<string> ApplyShortcuts(IReadOnlyDictionary<string, Keys> bindings, int holdKey)
+    private IReadOnlyCollection<string> ApplyShortcuts(IReadOnlyDictionary<string, Keys> bindings, int holdKey, int toggleKey)
     {
         Shortcuts.Store(_s, bindings);
-        _s.HoldKey = holdKey;
-        if (_hold != null) _hold.Key = holdKey;
+        SetLensKeys(holdKey, toggleKey);
         _s.Save();
 
         // Test-register to find conflicts with other apps, then suspend again while the dialog is still open.
@@ -347,7 +361,7 @@ internal sealed class ViewerForm : Form
         switch (id)
         {
             case Shortcuts.Select or Shortcuts.SelectLocal: BeginSelect(); break;
-            case Shortcuts.LensToggle: _lensOn ^= true; UpdateLens(); break;
+            case Shortcuts.LensToggle: ToggleLens(); break;
             case Shortcuts.LensZoomIn: LensZoomBy(1.25); break;
             case Shortcuts.LensZoomOut: LensZoomBy(0.8); break;
             case Shortcuts.Fullscreen: ToggleFullscreen(); break;
@@ -381,10 +395,30 @@ internal sealed class ViewerForm : Form
         if (show)
         {
             _lens ??= new LensForm();
-            _lens.Present(_s.Region, _s.LensZoom, _s.Smooth, _s.ShowCursor);
+            _lens.Present(_s.Region, _s.LensZoom, _s.Smooth, _s.ShowCursor, _s.LensShowFps);
         }
         else _lens?.Conceal();
         UpdateBorder();
+    }
+
+    private void ToggleLens()
+    {
+        _lensOn ^= true;
+        UpdateLens();
+    }
+
+    /// <summary>Sets the hold and toggle keys; a key can't be both, so the newer one wins.</summary>
+    private void SetLensKeys(int holdKey, int toggleKey)
+    {
+        if (holdKey == toggleKey && holdKey != 0)
+        {
+            if (holdKey != _s.HoldKey) toggleKey = 0;
+            else holdKey = 0;
+        }
+        _s.HoldKey = holdKey;
+        _s.ToggleKey = toggleKey;
+        if (_hold != null) _hold.Key = holdKey;
+        if (_toggle != null) _toggle.Key = toggleKey;
     }
 
     private void LensZoomBy(double factor)
@@ -775,7 +809,7 @@ internal sealed class ViewerForm : Form
     private void PopulateLensMenu()
     {
         _menu.Items.Add(new ToolStripSeparator());
-        _menu.Items.Add(new ToolStripMenuItem("Show lens", null, (_, _) => { _lensOn ^= true; UpdateLens(); })
+        _menu.Items.Add(new ToolStripMenuItem("Show lens", null, (_, _) => ToggleLens())
             { Checked = _lensOn, ShortcutKeyDisplayString = Key(Shortcuts.LensToggle) });
 
         var zoom = new ToolStripMenuItem($"Lens zoom ({_s.LensZoom:0.##}×)");
@@ -787,19 +821,21 @@ internal sealed class ViewerForm : Form
         zoom.DropDownItems.Add(new ToolStripMenuItem("Zoom out", null, (_, _) => LensZoomBy(0.8)) { ShortcutKeyDisplayString = Key(Shortcuts.LensZoomOut) });
         _menu.Items.Add(zoom);
 
-        var hold = new ToolStripMenuItem($"Hold to show ({Shortcuts.HoldKeyName(_s.HoldKey)})");
-        var holdChoices = Shortcuts.HoldKeys.ToList();
-        if (holdChoices.All(k => k.Vk != _s.HoldKey)) holdChoices.Add((_s.HoldKey, Shortcuts.HoldKeyName(_s.HoldKey)));
-        foreach (var (vk, name) in holdChoices)
-            hold.DropDownItems.Add(new ToolStripMenuItem(name, null, (_, _) =>
-            {
-                _s.HoldKey = vk;
-                if (_hold != null) _hold.Key = vk;
-                _s.Save();
-            }) { Checked = _s.HoldKey == vk });
-        hold.DropDownItems.Add(new ToolStripSeparator());
-        hold.DropDownItems.Add("Record a key or button…", null, (_, _) => BeginInvoke(OpenShortcuts));
-        _menu.Items.Add(hold);
+        _menu.Items.Add(LensKeyMenu("Hold to show", _s.HoldKey, vk => SetLensKeys(vk, _s.ToggleKey)));
+        _menu.Items.Add(LensKeyMenu("Press to toggle", _s.ToggleKey, vk => SetLensKeys(_s.HoldKey, vk)));
+        _menu.Items.Add(Toggle("Show FPS counter", "", _s.LensShowFps, () => { _s.LensShowFps ^= true; UpdateLens(); }));
+    }
+
+    private ToolStripMenuItem LensKeyMenu(string text, int current, Action<int> set)
+    {
+        var item = new ToolStripMenuItem($"{text} ({Shortcuts.HoldKeyName(current)})");
+        var choices = Shortcuts.HoldKeys.ToList();
+        if (choices.All(k => k.Vk != current)) choices.Add((current, Shortcuts.HoldKeyName(current)));
+        foreach (var (vk, name) in choices)
+            item.DropDownItems.Add(new ToolStripMenuItem(name, null, (_, _) => { set(vk); _s.Save(); }) { Checked = current == vk });
+        item.DropDownItems.Add(new ToolStripSeparator());
+        item.DropDownItems.Add("Record a key or button…", null, (_, _) => BeginInvoke(OpenShortcuts));
+        return item;
     }
 
     private void PopulateMonitorMenu()

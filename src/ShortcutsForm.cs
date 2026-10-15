@@ -14,14 +14,14 @@ internal sealed class ShortcutsForm : Form
     private static readonly Color Warn = Color.FromArgb(255, 125, 110);
     private static readonly Color Ok = Color.FromArgb(120, 232, 150);
 
-    /// <summary>Saves the bindings and hold key; returns the ids of global shortcuts that couldn't be registered.</summary>
-    public delegate IReadOnlyCollection<string> ApplyHandler(IReadOnlyDictionary<string, Keys> bindings, int holdKey);
+    /// <summary>Saves the bindings and lens keys; returns the ids of global shortcuts that couldn't be registered.</summary>
+    public delegate IReadOnlyCollection<string> ApplyHandler(IReadOnlyDictionary<string, Keys> bindings, int holdKey, int toggleKey);
 
     private readonly ApplyHandler _apply;
     private readonly Dictionary<string, Keys> _bindings;
     private readonly Dictionary<string, KeyBox> _boxes = new();
     private readonly Dictionary<string, Label> _notes = new();
-    private readonly HoldBox _hold;
+    private readonly HoldBox _hold, _toggle;
     private readonly Label _status;
 
     public ShortcutsForm(Settings s, ApplyHandler apply)
@@ -92,11 +92,9 @@ internal sealed class ShortcutsForm : Form
         table.Click += (_, _) => ActiveControl = null;
 
         _hold = new HoldBox { Vk = s.HoldKey, Margin = new Padding(0, 3, 4, 3) };
-        _hold.Recorded += vk =>
-        {
-            SetStatus($"Hold key: {Shortcuts.HoldKeyName(vk)}", Ok);
-            ActiveControl = null;
-        };
+        _toggle = new HoldBox { Vk = s.ToggleKey, Margin = new Padding(0, 3, 4, 3) };
+        _hold.Recorded += vk => OnLensKeyRecorded(_hold, _toggle, vk, "Hold key", "lens toggle");
+        _toggle.Recorded += vk => OnLensKeyRecorded(_toggle, _hold, vk, "Lens toggle", "hold key");
 
         string? group = null;
         foreach (var def in Shortcuts.All)
@@ -121,7 +119,11 @@ internal sealed class ShortcutsForm : Form
             _boxes[def.Id].Recorded += OnRecorded;
 
             if (def.Id == Shortcuts.LensZoomOut)
-                AddRow(table, "Show lens while held  (lens mode)", out _, _hold, MakeHoldClear());
+            {
+                AddRow(table, "Show lens while held  (lens mode)", out _, _hold, MakeHoldClear(_hold, "Hold key removed."));
+                AddRow(table, "Lens on / off with a key or mouse button  (lens mode)", out _, _toggle,
+                    MakeHoldClear(_toggle, "Lens toggle key removed."));
+            }
         }
         scroll.Controls.Add(table);
 
@@ -178,16 +180,29 @@ internal sealed class ShortcutsForm : Form
         return b;
     }
 
-    private Control MakeHoldClear()
+    private Control MakeHoldClear(HoldBox box, string message)
     {
         var b = (Button)MakeClear("");
         b.Click += (_, _) =>
         {
-            _hold.Vk = 0;
-            _hold.Invalidate();
-            SetStatus("Hold key removed; use the toggle shortcut instead.", Dim);
+            box.Vk = 0;
+            box.Invalidate();
+            SetStatus(message, Dim);
         };
         return b;
+    }
+
+    /// <summary>One key can't both hold and toggle the lens, so recording it on one clears the other.</summary>
+    private void OnLensKeyRecorded(HoldBox box, HoldBox other, int vk, string what, string otherWhat)
+    {
+        if (other.Vk == vk)
+        {
+            other.Vk = 0;
+            other.Invalidate();
+            SetStatus($"{Shortcuts.HoldKeyName(vk)} was moved here from the {otherWhat}, which is now unset.", Accent);
+        }
+        else SetStatus($"{what}: {Shortcuts.HoldKeyName(vk)}", Ok);
+        ActiveControl = null;
     }
 
     private static Button MakeButton(string text, bool primary)
@@ -228,13 +243,15 @@ internal sealed class ShortcutsForm : Form
         foreach (var def in Shortcuts.All) _bindings[def.Id] = def.Default;
         _hold.Vk = 0x05;
         _hold.Invalidate();
+        _toggle.Vk = 0x06;
+        _toggle.Invalidate();
         RefreshBoxes();
         SetStatus("Defaults restored. Press Save to keep them.", Dim);
     }
 
     private void SaveAndClose()
     {
-        var failed = _apply(_bindings, _hold.Vk);
+        var failed = _apply(_bindings, _hold.Vk, _toggle.Vk);
         RefreshBoxes(failed);
         if (failed.Count == 0)
         {

@@ -75,7 +75,7 @@ internal sealed class HintForm : Form
             new("Lens mode",
             [
                 new(() => Cat(K(Shortcuts.SwitchMode), ["|"], K(Shortcuts.LensMode)), "Switch to lens: zoom in place over the area"),
-                new(() => K(Shortcuts.LensToggle), "Lens on / off (works in any app)"),
+                new(() => K(Shortcuts.LensToggle), "Lens on / off (any app; or the toggle mouse button)"),
                 new(() => ["Hold"], "Show lens while held (pick the key in shortcuts)"),
                 new(() => Cat(K(Shortcuts.LensZoomIn), ["|"], K(Shortcuts.LensZoomOut)), "Lens zoom in / out"),
             ]),

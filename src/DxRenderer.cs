@@ -4,6 +4,7 @@ using Vortice;
 using Vortice.Direct2D1;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
+using Vortice.DirectWrite;
 using Vortice.DXGI;
 using DAlphaMode = Vortice.DCommon.AlphaMode;
 using DPixelFormat = Vortice.DCommon.PixelFormat;
@@ -13,7 +14,7 @@ using InterpolationMode = Vortice.Direct2D1.InterpolationMode;
 namespace Zoomifier;
 
 /// <summary>What to draw; handed from the UI thread to the render thread as an immutable snapshot.</summary>
-internal sealed record ViewState(Rectangle Region, Size ClientSize, bool KeepAspect, bool Smooth, bool ShowCursor);
+internal sealed record ViewState(Rectangle Region, Size ClientSize, bool KeepAspect, bool Smooth, bool ShowCursor, bool ShowFps = false);
 
 /// <summary>
 /// GPU pipeline on its own thread. Each refresh it waits on the swap chain's frame-latency object (vsync-paced,
@@ -67,6 +68,12 @@ internal sealed class DxRenderer : IDisposable
     private IntPtr _cursorHandle;
     private Point _cursorHotspot;
     private ID2D1Bitmap1? _cursorBmp;
+
+    private IDWriteFactory? _dwrite;
+    private IDWriteTextFormat? _fpsFormat;
+    private ID2D1SolidColorBrush? _fpsBack, _fpsText;
+    private long _fpsStart, _fpsFrames;
+    private double _fps;
 
     public DxRenderer(IntPtr hwnd)
     {
@@ -129,6 +136,7 @@ internal sealed class DxRenderer : IDisposable
                 Render(v);
                 _swapChain!.Present(1, PresentFlags.None).CheckError();
                 Interlocked.Increment(ref _frames);
+                CountFrame();
                 failures = 0;
             }
             catch (Exception) when (!_stop)
@@ -169,6 +177,7 @@ internal sealed class DxRenderer : IDisposable
         ctx.Clear(new Vortice.Mathematics.Color4(0, 0, 0, 1));
         ctx.DrawBitmap(src, new RawRectF(dst.Left, dst.Top, dst.Right, dst.Bottom), 1f, mode, srcRect, null);
         if (v.ShowCursor) DrawCursor(v.Region, dst, mode);
+        if (v.ShowFps) DrawFps();
         ctx.EndDraw().CheckError();
     }
 
@@ -271,6 +280,10 @@ internal sealed class DxRenderer : IDisposable
         if (_ctx != null) _ctx.Target = null;
         DisposeAndNull(ref _cursorBmp);
         _cursorHandle = IntPtr.Zero;
+        DisposeAndNull(ref _fpsBack);
+        DisposeAndNull(ref _fpsText);
+        DisposeAndNull(ref _fpsFormat);
+        DisposeAndNull(ref _dwrite);
         DisposeAndNull(ref _gdiBmp);
         _gdiDib?.Dispose();
         _gdiDib = null;
@@ -375,6 +388,39 @@ internal sealed class DxRenderer : IDisposable
         Native.GdiFlush();
         _gdiBmp!.CopyFromMemory(_gdiDib.Bits, (uint)(r.Width * 4));
         return _gdiBmp;
+    }
+
+    // ---------- fps counter ----------
+
+    /// <summary>Presents per second, averaged over half-second windows.</summary>
+    private void CountFrame()
+    {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_fpsStart == 0) { _fpsStart = now; _fpsFrames = 0; return; }
+        _fpsFrames++;
+        double elapsed = (now - _fpsStart) / (double)System.Diagnostics.Stopwatch.Frequency;
+        if (elapsed < 0.5) return;
+        // A long pause (view hidden) isn't a slow frame rate: start a fresh window instead.
+        if (elapsed < 2) _fps = _fpsFrames / elapsed;
+        _fpsStart = now;
+        _fpsFrames = 0;
+    }
+
+    private void DrawFps()
+    {
+        var ctx = _ctx!;
+        if (_fpsFormat == null)
+        {
+            _dwrite = DWrite.DWriteCreateFactory<IDWriteFactory>();
+            _fpsFormat = _dwrite.CreateTextFormat("Segoe UI", FontWeight.SemiBold, Vortice.DirectWrite.FontStyle.Normal, FontStretch.Normal, 15f);
+            _fpsFormat.TextAlignment = TextAlignment.Center;
+            _fpsFormat.ParagraphAlignment = ParagraphAlignment.Center;
+            _fpsBack = ctx.CreateSolidColorBrush(new Vortice.Mathematics.Color4(0, 0, 0, 0.6f));
+            _fpsText = ctx.CreateSolidColorBrush(new Vortice.Mathematics.Color4(0.47f, 0.91f, 0.59f, 1));
+        }
+        var box = new RawRectF(8, 8, 8 + 78, 8 + 26);
+        ctx.FillRoundedRectangle(new RoundedRectangle(box, 5, 5), _fpsBack!);
+        ctx.DrawText(_fps > 0 ? $"{_fps:0} FPS" : "– FPS", _fpsFormat, box, _fpsText!);
     }
 
     // ---------- cursor ----------

@@ -58,11 +58,11 @@ internal sealed class LensForm : Form
         return new Rectangle(area.X + (area.Width - w) / 2, area.Y + (area.Height - h) / 2, w, h);
     }
 
-    public void Present(Rectangle area, double zoom, bool smooth, bool showCursor)
+    public void Present(Rectangle area, double zoom, bool smooth, bool showCursor, bool showFps)
     {
         if (!IsHandleCreated) CreateHandle();
         if (Bounds != area) Bounds = area;
-        _dx!.SetView(new ViewState(Source(area, zoom), area.Size, true, smooth, showCursor));
+        _dx!.SetView(new ViewState(Source(area, zoom), area.Size, true, smooth, showCursor, showFps));
         if (!Visible) Show();
     }
 
@@ -73,7 +73,7 @@ internal sealed class LensForm : Form
     }
 }
 
-/// <summary>Polls a hold key every ~2 ms on a background thread; works while games and other apps have focus.</summary>
+/// <summary>Polls a key or mouse button every ~2 ms on a background thread; works while games and other apps have focus.</summary>
 internal sealed class HoldWatcher : IDisposable
 {
     private readonly Thread _thread;
@@ -87,7 +87,7 @@ internal sealed class HoldWatcher : IDisposable
     public HoldWatcher(int vk)
     {
         _vk = vk;
-        _thread = new Thread(Run) { IsBackground = true, Name = "Zoomifier hold key" };
+        _thread = new Thread(Run) { IsBackground = true, Name = "Zoomifier lens key" };
         _thread.Start();
     }
 
